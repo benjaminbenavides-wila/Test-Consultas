@@ -1,44 +1,44 @@
 -- Versión mejorada para SAP Business One HANA Query Manager
--- Sin CTEs, sin alias de tabla (máxima compatibilidad), con mapeos CASE internos y placeholders [%0], [%1]
+-- Sin CTEs, sin alias de tabla, sin comillas en nombres (máxima compatibilidad)
 --
 -- En tercera persona: esta consulta extrae movimientos contables del período especificado,
 -- los clasifica por operacionalidad, BU, segmento y calcula pérdida/ganancia/saldo.
--- Excluye asientos de cierre que contengan la palabra "CIERRE" en LineMemo o Memo.
+-- Excluye asientos de cierre que contengan la palabra CIERRE en LineMemo o Memo.
 
 SELECT
-    OACT."FormatCode" AS "IdentificadorCuenta",
-    OACT."AcctName"   AS "NombreCuenta",
-    JDT1."RefDate"    AS "FechaContabilizacion",
+    OACT.FormatCode AS IdentificadorCuenta,
+    OACT.AcctName AS NombreCuenta,
+    JDT1.RefDate AS FechaContabilizacion,
 
     -- Factura de proveedor (solo si está enlazada a OPCH)
-    OPCH."DocNum"     AS "NumeroFactura",
-    OPCH."FolioNum"   AS "Folio",
+    OPCH.DocNum AS NumeroFactura,
+    OPCH.FolioNum AS Folio,
 
     -- Información transaccional
-    JDT1."TransId"    AS "NumeroTransaccion",
-    JDT1."LineMemo"   AS "Glosa",
-    JDT1."ProfitCode" AS "CentroCosto",
-    JDT1."OcrCode2"   AS "Segmentos",
-    JDT1."OcrCode3"   AS "BusinessUnit",
-    JDT1."OcrCode4"   AS "Vendedor",
+    JDT1.TransId AS NumeroTransaccion,
+    JDT1.LineMemo AS Glosa,
+    JDT1.ProfitCode AS CentroCosto,
+    JDT1.OcrCode2 AS Segmentos,
+    JDT1.OcrCode3 AS BusinessUnit,
+    JDT1.OcrCode4 AS Vendedor,
 
     -- Proveedor
-    OPCH."CardCode"   AS "CodigoProveedor",
-    OPCH."CardName"   AS "NombreProveedor",
+    OPCH.CardCode AS CodigoProveedor,
+    OPCH.CardName AS NombreProveedor,
 
     -- Clasificación Operacional vs No Operacional (basada en FormatCode)
     CASE
-        WHEN SUBSTRING(OACT."FormatCode", 1, 1) IN ('1','2','3') THEN 'Balance'
-        WHEN OACT."FormatCode" IN ('62031600','63048000','81050700','62030100','63047000','81050600','63080200') THEN 'No Operacional'
-        WHEN OACT."FormatCode" = '81060100' THEN 'Impuesto a la Renta'
-        WHEN SUBSTRING(OACT."FormatCode", 1, 1) IN ('4','5','6') THEN 'Operacional'
-        WHEN SUBSTRING(OACT."FormatCode", 1, 1) = '7' THEN 'No Operacional'
-        WHEN SUBSTRING(OACT."FormatCode", 1, 1) = '8' THEN 'Operacional'
+        WHEN SUBSTRING(OACT.FormatCode, 1, 1) IN ('1','2','3') THEN 'Balance'
+        WHEN OACT.FormatCode IN ('62031600','63048000','81050700','62030100','63047000','81050600','63080200') THEN 'No Operacional'
+        WHEN OACT.FormatCode = '81060100' THEN 'Impuesto a la Renta'
+        WHEN SUBSTRING(OACT.FormatCode, 1, 1) IN ('4','5','6') THEN 'Operacional'
+        WHEN SUBSTRING(OACT.FormatCode, 1, 1) = '7' THEN 'No Operacional'
+        WHEN SUBSTRING(OACT.FormatCode, 1, 1) = '8' THEN 'Operacional'
         ELSE 'SIN CLASIFICAR'
-    END AS "Op_NotOP",
+    END AS Op_NotOP,
 
     -- Clasificación de Cuenta Mayor (mapeo por FormatCode)
-    CASE OACT."FormatCode"
+    CASE OACT.FormatCode
         WHEN '41010100' THEN 'Total Ingresos Operacionales'
         WHEN '41011000' THEN 'Otros Ingresos'
         WHEN '51010300' THEN 'Costo Ventas'
@@ -108,10 +108,10 @@ SELECT
         WHEN '81050700' THEN 'Otros Gastos I+D'
         WHEN '81060100' THEN 'Impuesto a la Renta'
         ELSE 'SIN CLASIFICAR'
-    END AS "CuentaMayor",
+    END AS CuentaMayor,
 
     -- Código Mayor (mapeo por FormatCode)
-    CASE OACT."FormatCode"
+    CASE OACT.FormatCode
         WHEN '41011000' THEN '4111'
         WHEN '41010100' THEN '4110'
         WHEN '51010300' THEN '5110'
@@ -181,62 +181,55 @@ SELECT
         WHEN '81050700' THEN '8157'
         WHEN '81060100' THEN '8161'
         ELSE '000'
-    END AS "CodMayor",
+    END AS CodMayor,
 
     -- Unidad de Negocio (basada en OcrCode3)
     CASE 
-        WHEN JDT1."OcrCode3" IN ('MIN','DUK','SCHUNK') THEN 'MINERÍA'
-        WHEN JDT1."OcrCode3" IN ('GEN','EO','HID') THEN 'GENERACIÓN'
-        WHEN JDT1."OcrCode3" = 'FFCC' THEN 'TRANSPORTE'
-        WHEN JDT1."OcrCode3" IN ('CEM','OU','PT') THEN 'INDUSTRIAL'
+        WHEN JDT1.OcrCode3 IN ('MIN','DUK','SCHUNK') THEN 'MINERÍA'
+        WHEN JDT1.OcrCode3 IN ('GEN','EO','HID') THEN 'GENERACIÓN'
+        WHEN JDT1.OcrCode3 = 'FFCC' THEN 'TRANSPORTE'
+        WHEN JDT1.OcrCode3 IN ('CEM','OU','PT') THEN 'INDUSTRIAL'
         ELSE 'SIN CLASIFICAR'
-    END AS "UnidadNegocio",
+    END AS UnidadNegocio,
 
     -- Tipo de Segmento (basada en OcrCode2)
     CASE 
-        WHEN JDT1."OcrCode2" IN ('CON','PV') THEN 'PISO EFECTIVO'
-        WHEN JDT1."OcrCode2" IN ('EXP','PRO') THEN 'CRECIMIENTO'
+        WHEN JDT1.OcrCode2 IN ('CON','PV') THEN 'PISO EFECTIVO'
+        WHEN JDT1.OcrCode2 IN ('EXP','PRO') THEN 'CRECIMIENTO'
         ELSE 'SIN CLASIFICAR'
-    END AS "TipoSegmento",
+    END AS TipoSegmento,
 
-    -- Agregados financieros: Pérdida, Ganancia y Saldo
-    SUM(JDT1."Debit") AS "TotalDebito",
-    SUM(JDT1."Credit") AS "TotalCredito",
-    SUM(JDT1."Debit") - SUM(JDT1."Credit") AS "Saldo"
+    -- Agregados financieros
+    SUM(JDT1.Debit) AS TotalDebito,
+    SUM(JDT1.Credit) AS TotalCredito,
+    SUM(JDT1.Debit) - SUM(JDT1.Credit) AS Saldo
 
 FROM JDT1
-INNER JOIN OACT ON JDT1."Account" = OACT."AcctCode"
-LEFT JOIN OJDT ON OJDT."TransId" = JDT1."TransId"
-
--- Unión con OPCH (facturas de proveedor)
--- Se enlaza por número de documento
-LEFT JOIN OPCH
-    ON OPCH."DocNum" = JDT1."LineMemo"
+INNER JOIN OACT ON JDT1.Account = OACT.AcctCode
+LEFT JOIN OJDT ON OJDT.TransId = JDT1.TransId
+LEFT JOIN OPCH ON OPCH.DocNum = JDT1.LineMemo
 
 WHERE
-    -- Filtro de rango de fechas usando placeholders [%0] y [%1] (formato YYYY-MM-DD)
-    JDT1."RefDate" >= '[%0]'
-    AND JDT1."RefDate" <= '[%1]'
-
-    -- Excluir asientos de cierre (contienen 'CIERRE' en LineMemo o Memo)
-    AND UPPER(JDT1."LineMemo") NOT LIKE '%CIERRE%'
-    AND UPPER(OJDT."Memo") NOT LIKE '%CIERRE%'
+    JDT1.RefDate >= '[%0]'
+    AND JDT1.RefDate <= '[%1]'
+    AND UPPER(JDT1.LineMemo) NOT LIKE '%CIERRE%'
+    AND UPPER(OJDT.Memo) NOT LIKE '%CIERRE%'
 
 GROUP BY
-    OACT."FormatCode",
-    OACT."AcctName",
-    JDT1."RefDate",
-    OPCH."DocNum",
-    OPCH."FolioNum",
-    JDT1."TransId",
-    JDT1."LineMemo",
-    JDT1."ProfitCode",
-    JDT1."OcrCode2",
-    JDT1."OcrCode3",
-    JDT1."OcrCode4",
-    OPCH."CardCode",
-    OPCH."CardName"
+    OACT.FormatCode,
+    OACT.AcctName,
+    JDT1.RefDate,
+    OPCH.DocNum,
+    OPCH.FolioNum,
+    JDT1.TransId,
+    JDT1.LineMemo,
+    JDT1.ProfitCode,
+    JDT1.OcrCode2,
+    JDT1.OcrCode3,
+    JDT1.OcrCode4,
+    OPCH.CardCode,
+    OPCH.CardName
 
 ORDER BY
-    OACT."FormatCode",
-    JDT1."RefDate";
+    OACT.FormatCode,
+    JDT1.RefDate;
