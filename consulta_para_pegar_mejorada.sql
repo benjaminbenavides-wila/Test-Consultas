@@ -200,16 +200,8 @@ SELECT
     END AS "TipoSegmento",
 
     -- Agregados financieros: Pérdida, Ganancia y Saldo
-    CASE WHEN (SUM(JDT1."Debit") - SUM(JDT1."Credit")) > 0 
-         THEN (SUM(JDT1."Debit") - SUM(JDT1."Credit")) 
-         ELSE 0 
-    END AS "Perdida",
-    
-    CASE WHEN (SUM(JDT1."Debit") - SUM(JDT1."Credit")) < 0 
-         THEN ABS(SUM(JDT1."Debit") - SUM(JDT1."Credit")) 
-         ELSE 0 
-    END AS "Ganancia",
-    
+    SUM(JDT1."Debit") AS "TotalDebito",
+    SUM(JDT1."Credit") AS "TotalCredito",
     SUM(JDT1."Debit") - SUM(JDT1."Credit") AS "Saldo"
 
 FROM JDT1
@@ -217,21 +209,18 @@ INNER JOIN OACT ON JDT1."Account" = OACT."AcctCode"
 LEFT JOIN OJDT ON OJDT."TransId" = JDT1."TransId"
 
 -- Unión con OPCH (facturas de proveedor)
--- Se usa un simple LEFT JOIN; se enlaza cuando CreatedBy = DocEntry
+-- Se enlaza por número de documento
 LEFT JOIN OPCH
-    ON OPCH."DocEntry" = CAST(JDT1."CreatedBy" AS INTEGER)
-    AND JDT1."TransType" = 18
+    ON OPCH."DocNum" = JDT1."LineMemo"
 
 WHERE
     -- Filtro de rango de fechas usando placeholders [%0] y [%1] (formato YYYY-MM-DD)
-    JDT1."RefDate" >= CAST('[%0]' AS DATE)
-    AND JDT1."RefDate" <= CAST('[%1]' AS DATE)
+    JDT1."RefDate" >= '[%0]'
+    AND JDT1."RefDate" <= '[%1]'
 
     -- Excluir asientos de cierre (contienen 'CIERRE' en LineMemo o Memo)
-    AND UPPER(COALESCE(JDT1."LineMemo", '')) NOT LIKE '%CIERRE%'
-    AND UPPER(COALESCE(OJDT."Memo", ''))     NOT LIKE '%CIERRE%'
-    AND UPPER(COALESCE(OJDT."Ref1", ''))     NOT LIKE '%CIERRE%'
-    AND UPPER(COALESCE(OJDT."Ref2", ''))     NOT LIKE '%CIERRE%'
+    AND UPPER(JDT1."LineMemo") NOT LIKE '%CIERRE%'
+    AND UPPER(OJDT."Memo") NOT LIKE '%CIERRE%'
 
 GROUP BY
     OACT."FormatCode",
