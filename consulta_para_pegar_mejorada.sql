@@ -79,7 +79,10 @@ SELECT
         WHEN '63060300' THEN 'Gastos Comerciales'
         WHEN '63060400' THEN 'Gastos Comerciales'
         WHEN '63060500' THEN 'Gastos Comerciales'
-        WHEN '63060600' THEN 'Gastos Comerciales'
+        -- Codigo Mayor: agrupacion automatica por los primeros 4 digitos del FormatCode
+        -- Si en el futuro se requieren excepciones puntuales, se pueden agregar
+        -- condiciones especificas antes del valor por prefijo.
+        SUBSTRING(OACT.FormatCode, 1, 4) AS CodMayor,
         WHEN '63070100' THEN 'Asesorias Externas'
         WHEN '63070200' THEN 'Asesorias Externas'
         WHEN '63070300' THEN 'Asesorias Externas'
