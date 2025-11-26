@@ -7,11 +7,9 @@
 -- Nota: Esta versión se adapta a SAP Business One HANA: usa `TO_DATE`, `SUBSTRING`,
 --       `REGEXP_LIKE` y `TO_INTEGER`. Revisar formato de placeholders `[%0]`/`[%1]`.
 
--- Declaración de parámetros de fecha en tercera persona (se convierten a DATE para HANA).
--- Se asume que los placeholders están en formato 'YYYY-MM-DD'. Ajustar formato si es distinto.
-DECLARE "FechaInicio" DATE := TO_DATE('[%0]', 'YYYY-MM-DD');
-DECLARE "FechaFin"    DATE := TO_DATE('[%1]', 'YYYY-MM-DD');
-
+-- En tercera persona: esta consulta se ejecuta a través de Query Manager en SAP B1 HANA.
+-- Los placeholders [%0] y [%1] reciben las fechas de inicio y fin (formato: 'YYYY-MM-DD').
+-- 
 -- CTE con mapeo de FormatCode -> Cuenta Mayor (mejora 1: sustituir CASE por tabla de mapeo)
 WITH MapCuenta AS (
     SELECT '41010100' AS FormatCode, 'Total Ingresos Operacionales' AS CuentaMayor UNION ALL
@@ -229,10 +227,9 @@ LEFT JOIN MapCuenta mc ON mc.FormatCode = T1.FormatCode
 LEFT JOIN MapCodMayor mc2 ON mc2.FormatCode = T1.FormatCode
 
 WHERE
-    -- Validar que las variables de fecha se hayan establecido; si no, la consulta retornará 0 filas
-    "FechaInicio" IS NOT NULL
-    AND "FechaFin" IS NOT NULL
-    AND T0.RefDate BETWEEN "FechaInicio" AND "FechaFin"
+    -- Se valida que los placeholders [%0] y [%1] sean válidos y contengan fechas en formato YYYY-MM-DD.
+    -- La consulta filtra movimientos contables dentro del rango especificado.
+    T0.RefDate BETWEEN TO_DATE('[%0]', 'YYYY-MM-DD') AND TO_DATE('[%1]', 'YYYY-MM-DD')
 
     -- Excluir cierres
     AND UPPER(COALESCE(T0.LineMemo, '')) NOT LIKE '%CIERRE%'
