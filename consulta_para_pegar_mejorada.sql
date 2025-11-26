@@ -4,12 +4,13 @@
 -- 3) Hacer la unión con `OPCH` más tolerante: intenta hacer match por `DocEntry` (cuando `CreatedBy` es numérico)
 --    y por `DocNum` cuando aplica; agrega comentarios y no altera la lógica original si no existe coincidencia.
 --
--- Nota: Esta versión está diseñada para SQL Server. Si su motor difiere, adaptar funciones
---       (por ejemplo, `TRY_CONVERT`, `LEFT`, comillas de identificador, etc.).
+-- Nota: Esta versión se adapta a SAP Business One HANA: usa `TO_DATE`, `SUBSTRING`,
+--       `REGEXP_LIKE` y `TO_INTEGER`. Revisar formato de placeholders `[%0]`/`[%1]`.
 
--- Declaración de parámetros de fecha en tercera persona (se validan y convierten a DATE).
-DECLARE @FechaInicio DATE = TRY_CONVERT(DATE, '[%0]', 23);
-DECLARE @FechaFin    DATE = TRY_CONVERT(DATE, '[%1]', 23);
+-- Declaración de parámetros de fecha en tercera persona (se convierten a DATE para HANA).
+-- Se asume que los placeholders están en formato 'YYYY-MM-DD'. Ajustar formato si es distinto.
+DECLARE "FechaInicio" DATE := TO_DATE('[%0]', 'YYYY-MM-DD');
+DECLARE "FechaFin"    DATE := TO_DATE('[%1]', 'YYYY-MM-DD');
 
 -- CTE con mapeo de FormatCode -> Cuenta Mayor (mejora 1: sustituir CASE por tabla de mapeo)
 WITH MapCuenta AS (
@@ -177,12 +178,12 @@ SELECT
 
     -- Clasificación operativa simplificada basada en el primer caracter del FormatCode
     CASE
-        WHEN LEFT(T1.FormatCode,1) IN ('1','2','3') THEN 'Balance'
+        WHEN SUBSTRING(T1.FormatCode,1,1) IN ('1','2','3') THEN 'Balance'
         WHEN T1.FormatCode IN ('62031600','63048000','81050700','62030100','63047000','81050600','63080200') THEN 'No Operacional'
         WHEN T1.FormatCode = '81060100' THEN 'Impuesto a la Renta'
-        WHEN LEFT(T1.FormatCode,1) IN ('4','5','6') THEN 'Operacional'
-        WHEN LEFT(T1.FormatCode,1) = '7' THEN 'No Operacional'
-        WHEN LEFT(T1.FormatCode,1) = '8' THEN 'Operacional'
+        WHEN SUBSTRING(T1.FormatCode,1,1) IN ('4','5','6') THEN 'Operacional'
+        WHEN SUBSTRING(T1.FormatCode,1,1) = '7' THEN 'No Operacional'
+        WHEN SUBSTRING(T1.FormatCode,1,1) = '8' THEN 'Operacional' 
         ELSE 'SIN CLASIFICAR'
     END AS Op_NotOP,
 
@@ -214,10 +215,10 @@ FROM JDT1 T0
 INNER JOIN OACT T1 ON T0.Account = T1.AcctCode
 LEFT JOIN OJDT OJ ON OJ.TransId = T0.TransId
 
--- Unión con OPCH más tolerante: intenta DocEntry numérico y DocNum textual
+-- Unión con OPCH más tolerante adaptada a HANA: usa REGEXP_LIKE para detectar números y TO_INTEGER
 LEFT JOIN OPCH OI
     ON (
-        (TRY_CONVERT(INT, T0.CreatedBy) IS NOT NULL AND OI.DocEntry = TRY_CONVERT(INT, T0.CreatedBy))
+        (REGEXP_LIKE(T0.CreatedBy, '^[0-9]+$') AND OI.DocEntry = TO_INTEGER(T0.CreatedBy))
         OR
         (OI.DocNum = T0.CreatedBy)
     )
@@ -228,10 +229,10 @@ LEFT JOIN MapCuenta mc ON mc.FormatCode = T1.FormatCode
 LEFT JOIN MapCodMayor mc2 ON mc2.FormatCode = T1.FormatCode
 
 WHERE
-    -- Validar que las variables de fecha se hayan convertido correctamente; si no, la consulta retornará 0 filas
-    @FechaInicio IS NOT NULL
-    AND @FechaFin IS NOT NULL
-    AND T0.RefDate BETWEEN @FechaInicio AND @FechaFin
+    -- Validar que las variables de fecha se hayan establecido; si no, la consulta retornará 0 filas
+    "FechaInicio" IS NOT NULL
+    AND "FechaFin" IS NOT NULL
+    AND T0.RefDate BETWEEN "FechaInicio" AND "FechaFin"
 
     -- Excluir cierres
     AND UPPER(COALESCE(T0.LineMemo, '')) NOT LIKE '%CIERRE%'
