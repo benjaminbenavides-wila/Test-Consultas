@@ -1,20 +1,16 @@
--- Versión mejorada para SAP Business One HANA Query Manager
--- Sin CTEs, sin alias de tabla, sin comillas en nombres (máxima compatibilidad)
---
--- En tercera persona: esta consulta extrae movimientos contables del período especificado,
--- los clasifica por operacionalidad, BU, segmento y calcula pérdida/ganancia/saldo.
--- Excluye asientos de cierre que contengan la palabra CIERRE en LineMemo o Memo.
+-- Version mejorada para SAP Business One HANA Query Manager
+-- Sin CTEs, sin alias de tabla, sin comillas en nombres (maxima compatibilidad)
+-- Esta consulta extrae movimientos contables del periodo especificado,
+-- los clasifica y calcula saldo. Evitar caracteres acentuados.
 
 SELECT
     OACT.FormatCode AS IdentificadorCuenta,
     OACT.AcctName AS NombreCuenta,
     JDT1.RefDate AS FechaContabilizacion,
 
-    -- Factura de proveedor (solo si está enlazada a OPCH)
     OPCH.DocNum AS NumeroFactura,
     OPCH.FolioNum AS Folio,
 
-    -- Información transaccional
     JDT1.TransId AS NumeroTransaccion,
     JDT1.LineMemo AS Glosa,
     JDT1.ProfitCode AS CentroCosto,
@@ -22,11 +18,9 @@ SELECT
     JDT1.OcrCode3 AS BusinessUnit,
     JDT1.OcrCode4 AS Vendedor,
 
-    -- Proveedor
     OPCH.CardCode AS CodigoProveedor,
     OPCH.CardName AS NombreProveedor,
 
-    -- Clasificación Operacional vs No Operacional (basada en FormatCode)
     CASE
         WHEN SUBSTRING(OACT.FormatCode, 1, 1) IN ('1','2','3') THEN 'Balance'
         WHEN OACT.FormatCode IN ('62031600','63048000','81050700','62030100','63047000','81050600','63080200') THEN 'No Operacional'
@@ -37,14 +31,13 @@ SELECT
         ELSE 'SIN CLASIFICAR'
     END AS Op_NotOP,
 
-    -- Clasificación de Cuenta Mayor (mapeo por FormatCode)
     CASE OACT.FormatCode
         WHEN '41010100' THEN 'Total Ingresos Operacionales'
         WHEN '41011000' THEN 'Otros Ingresos'
         WHEN '51010300' THEN 'Costo Ventas'
-        WHEN '52010100' THEN 'Depreciación'
+        WHEN '52010100' THEN 'Depreciacion'
         WHEN '62020100' THEN 'Leyes Sociales'
-        WHEN '62030100' THEN 'Otros Gastos  - No usar'
+        WHEN '62030100' THEN 'Otros Gastos - No usar'
         WHEN '62031600' THEN 'Viaticos'
         WHEN '63010100' THEN 'Gastos de Administracion'
         WHEN '63010200' THEN 'Gastos de Administracion'
@@ -60,12 +53,12 @@ SELECT
         WHEN '63020400' THEN 'Otras Retr. y Gastos de Personal'
         WHEN '63020500' THEN 'Otras Retr. y Gastos de Personal'
         WHEN '63020800' THEN 'Otras Retr. y Gastos de Personal'
-        WHEN '63030100' THEN 'Costo Importación'
-        WHEN '63030200' THEN 'Costo Importación'
-        WHEN '63030300' THEN 'Costo Importación'
-        WHEN '63030400' THEN 'Costo Importación'
+        WHEN '63030100' THEN 'Costo Importacion'
+        WHEN '63030200' THEN 'Costo Importacion'
+        WHEN '63030300' THEN 'Costo Importacion'
+        WHEN '63030400' THEN 'Costo Importacion'
         WHEN '63030500' THEN 'Costo Despachos'
-        WHEN '63030600' THEN 'Costo Importación'
+        WHEN '63030600' THEN 'Costo Importacion'
         WHEN '63040100' THEN 'Otros Gastos de Oficina'
         WHEN '63040200' THEN 'Otros Gastos de Oficina'
         WHEN '63040300' THEN 'Otros Gastos de Oficina'
@@ -91,26 +84,25 @@ SELECT
         WHEN '63070200' THEN 'Asesorias Externas'
         WHEN '63070300' THEN 'Asesorias Externas'
         WHEN '63080100' THEN 'Gastos Bancarios y Tarjetas'
-        WHEN '63080200' THEN 'Intereses por Préstamos'
+        WHEN '63080200' THEN 'Intereses por Prestamos'
         WHEN '63080400' THEN 'Comisiones Pago al Exterior'
         WHEN '63080600' THEN 'Intereses por Leasing'
-        WHEN '71010200' THEN 'Ingresos por Inversión Irf'
+        WHEN '71010200' THEN 'Ingresos por Inversion Irf'
         WHEN '71020300' THEN 'Gastos Menores'
         WHEN '71030100' THEN 'Resultado Inversiones'
         WHEN '71030200' THEN 'Reajuste Impuesto a la Renta'
         WHEN '71030300' THEN 'Ingresos por Arriendo'
         WHEN '81030100' THEN 'Diferencias por Tipo de Cambio'
-        WHEN '81040100' THEN 'Corrección Monetaria, Donaciones y Otros'
-        WHEN '81040400' THEN 'Corrección PPM'
+        WHEN '81040100' THEN 'Correccion Monetaria, Donaciones y Otros'
+        WHEN '81040400' THEN 'Correccion PPM'
         WHEN '81050300' THEN 'Gastos por Proyecto'
         WHEN '81050400' THEN 'Donaciones'
-        WHEN '81050600' THEN 'Dir y Planificación'
+        WHEN '81050600' THEN 'Dir y Planificacion'
         WHEN '81050700' THEN 'Otros Gastos I+D'
         WHEN '81060100' THEN 'Impuesto a la Renta'
         ELSE 'SIN CLASIFICAR'
     END AS CuentaMayor,
 
-    -- Código Mayor (mapeo por FormatCode)
     CASE OACT.FormatCode
         WHEN '41011000' THEN '4111'
         WHEN '41010100' THEN '4110'
@@ -183,23 +175,20 @@ SELECT
         ELSE '000'
     END AS CodMayor,
 
-    -- Unidad de Negocio (basada en OcrCode3)
     CASE 
-        WHEN JDT1.OcrCode3 IN ('MIN','DUK','SCHUNK') THEN 'MINERÍA'
-        WHEN JDT1.OcrCode3 IN ('GEN','EO','HID') THEN 'GENERACIÓN'
+        WHEN JDT1.OcrCode3 IN ('MIN','DUK','SCHUNK') THEN 'MINERIA'
+        WHEN JDT1.OcrCode3 IN ('GEN','EO','HID') THEN 'GENERACION'
         WHEN JDT1.OcrCode3 = 'FFCC' THEN 'TRANSPORTE'
         WHEN JDT1.OcrCode3 IN ('CEM','OU','PT') THEN 'INDUSTRIAL'
         ELSE 'SIN CLASIFICAR'
     END AS UnidadNegocio,
 
-    -- Tipo de Segmento (basada en OcrCode2)
     CASE 
         WHEN JDT1.OcrCode2 IN ('CON','PV') THEN 'PISO EFECTIVO'
         WHEN JDT1.OcrCode2 IN ('EXP','PRO') THEN 'CRECIMIENTO'
         ELSE 'SIN CLASIFICAR'
     END AS TipoSegmento,
 
-    -- Agregados financieros
     SUM(JDT1.Debit) AS TotalDebito,
     SUM(JDT1.Credit) AS TotalCredito,
     SUM(JDT1.Debit) - SUM(JDT1.Credit) AS Saldo
